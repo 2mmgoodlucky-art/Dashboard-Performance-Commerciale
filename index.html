@@ -139,17 +139,18 @@
             background-color: #F95D07;
             color: #000;
         }
-        
+
         .status-msg {
             text-align: center;
             font-weight: bold;
             margin-bottom: 15px;
+            font-size: 1.1em;
         }
     </style>
 </head>
 <body>
 
-    <h1>Statistiques des Appels (Dynamique Zoho CRM)</h1>
+    <h1>Statistiques des Appels (Sécurisé Vercel)</h1>
 
     <div class="config-container">
         <div class="config-box">
@@ -166,7 +167,7 @@
         </div>
     </div>
 
-    <div id="statusMessage" class="status-msg">Connexion à Zoho CRM en cours...</div>
+    <div id="statusMessage" class="status-msg">Connexion au serveur proxy sécurisé...</div>
 
     <p class="instruction">Cliquez sur une ligne pour la supprimer du calcul et du tableau</p>
     <button class="btn-reset" onclick="resetTableau()">Réinitialiser les données</button>
@@ -187,42 +188,26 @@
     </div>
 
     <script>
-        // -------------------------------------------------------------
-        // CONFIGURATION CONFIGURATION ZOHO (Valable 1 heure)
-        // Colles ici l'access_token généré par ton invite de commande (cmd)
-        // -------------------------------------------------------------
-        const ZOHO_ACCESS_TOKEN = "1000.fe9298c7ab0a93d8b3960e032ba8422b.217ce8d5255aac42aab756fc54f548d3"; 
-        const API_DOMAIN = "https://www.zohoapis.eu"; 
-
         let donneesInitiales = [];
         let donneesAffichees = [];
 
-        // Fonction pour récupérer les données réelles depuis ton Zoho européen
+        // Fonction pour appeler ton mini-serveur d'API sur Vercel
         function chargerDonneesZoho() {
             const statusDiv = document.getElementById('statusMessage');
             
-            // On interroge le module des Notes ou des Appels (ici configuré pour l'exemple sur les "Calls")
-            // Si tes statistiques dépendent d'un autre module, remplace /Calls par le nom de ton module Zoho
-            fetch(`${API_DOMAIN}/crm/v3/Calls`, {
-                method: "GET",
-                headers: {
-                    "Authorization": "Bearer " + ZOHO_ACCESS_TOKEN
-                }
-            })
+            fetch("/api/zoho")
             .then(response => {
                 if (!response.ok) {
-                    throw new Error("L'Access Token a probablement expiré (limite d'1 heure) ou les droits sont insuffisants.");
+                    throw new Error("Le serveur proxy n'a pas pu récupérer les données.");
                 }
                 return response.json();
             })
             .then(data => {
                 statusDiv.style.color = "#00FF00";
-                statusDiv.innerText = "Données synchronisées avec succès !";
+                statusDiv.innerText = "Données synchronisées avec succès via Vercel !";
                 
-                // Traitement et formatage des données reçues de Zoho
                 if(data.data) {
                     donneesInitiales = data.data.map(item => {
-                        // On extrait le nom du propriétaire de l'appel et les types d'appels
                         const nomCommercial = item.Owner ? item.Owner.name : "Inconnu";
                         const estSortant = item.Call_Type === "Outbound" ? 1 : 0;
                         const estEntrant = item.Call_Type === "Inbound" ? 1 : 0;
@@ -235,7 +220,7 @@
                         };
                     });
 
-                    // Regroupement des appels par Commercial (agrégation)
+                    // Agrégation par commercial
                     const listeAgregee = {};
                     donneesInitiales.forEach(curr => {
                         if(!listeAgregee[curr.nom]) {
@@ -251,13 +236,13 @@
                     initialiserTableau();
                 } else {
                     statusDiv.style.color = "#FFCC00";
-                    statusDiv.innerText = "Aucun appel trouvé dans la période actuelle.";
+                    statusDiv.innerText = "Aucun appel trouvé dans Zoho.";
                 }
             })
             .catch(error => {
                 console.error(error);
                 statusDiv.style.color = "#FF0000";
-                statusDiv.innerText = "Erreur Zoho : " + error.message;
+                statusDiv.innerText = "Erreur de connexion : " + error.message;
             });
         }
 
@@ -266,7 +251,7 @@
             tbody.innerHTML = '';
             let cumulS = 0, cumulE = 0, cumulT = 0;
 
-            // Tri du plus grand au plus petit total d'appels
+            // Tri décroissant
             donneesAffichees.sort((a, b) => b.total - a.total);
 
             donneesAffichees.forEach((d, index) => {
@@ -318,7 +303,7 @@
             document.getElementById('objectifResultat').innerText = objectif;
         }
 
-        // Lancement au chargement
+        // Chargement initial
         calculerObjectif();
         chargerDonneesZoho();
     </script>
