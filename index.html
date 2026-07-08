@@ -139,11 +139,17 @@
             background-color: #F95D07;
             color: #000;
         }
+        
+        .status-msg {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
     </style>
 </head>
 <body>
 
-    <h1>Statistiques des Appels (02/07/2026)</h1>
+    <h1>Statistiques des Appels (Dynamique Zoho CRM)</h1>
 
     <div class="config-container">
         <div class="config-box">
@@ -160,8 +166,10 @@
         </div>
     </div>
 
+    <div id="statusMessage" class="status-msg">Connexion à Zoho CRM en cours...</div>
+
     <p class="instruction">Cliquez sur une ligne pour la supprimer du calcul et du tableau</p>
-    <button class="btn-reset" onclick="resetTableau()">Réinitialiser le tableau</button>
+    <button class="btn-reset" onclick="resetTableau()">Réinitialiser les données</button>
 
     <div class="table-container">
         <table>
@@ -179,30 +187,86 @@
     </div>
 
     <script>
-        // Données initiales extraites fidèlement de l'image (02/07/2026)
-        const donneesInitiales = [
-            { nom: "Ellen DE CASTRO", sortants: 164, entrants: 5, total: 169 },
-            { nom: "Mattéo SOUDEILLE", sortants: 152, entrants: 7, total: 159 },
-            { nom: "Justine De Marco", sortants: 138, entrants: 10, total: 148 },
-            { nom: "Vanina Beaudouin", sortants: 141, entrants: 3, total: 144 },
-            { nom: "Zohra Laanaya", sortants: 129, entrants: 4, total: 133 },
-            { nom: "Xavier Riboreau ( new )", sortants: 118, entrants: 6, total: 124 },
-            { nom: "Hugo Vignier", sortants: 112, entrants: 6, total: 118 },
-            { nom: "Maïté DIPHE", sortants: 107, entrants: 2, total: 109 },
-            { nom: "Marie Amélie Borja", sortants: 79, entrants: 2, total: 81 },
-            { nom: "Sylvain Romian", sortants: 2, entrants: 2, total: 4 },
-            { nom: "Théo Mary", sortants: 2, entrants: 2, total: 4 },
-            { nom: "Sarah Jaunet", sortants: 1, entrants: 0, total: 1 }
-        ];
+        // -------------------------------------------------------------
+        // CONFIGURATION CONFIGURATION ZOHO (Valable 1 heure)
+        // Colles ici l'access_token généré par ton invite de commande (cmd)
+        // -------------------------------------------------------------
+        const ZOHO_ACCESS_TOKEN = "1000.fe9298c7ab0a93d8b3960e032ba8422b.217ce8d5255aac42aab756fc54f548d3"; 
+        const API_DOMAIN = "https://www.zohoapis.eu"; 
 
-        let donneesAffichees = [...donneesInitiales];
+        let donneesInitiales = [];
+        let donneesAffichees = [];
+
+        // Fonction pour récupérer les données réelles depuis ton Zoho européen
+        function chargerDonneesZoho() {
+            const statusDiv = document.getElementById('statusMessage');
+            
+            // On interroge le module des Notes ou des Appels (ici configuré pour l'exemple sur les "Calls")
+            // Si tes statistiques dépendent d'un autre module, remplace /Calls par le nom de ton module Zoho
+            fetch(`${API_DOMAIN}/crm/v3/Calls`, {
+                method: "GET",
+                headers: {
+                    "Authorization": "Bearer " + ZOHO_ACCESS_TOKEN
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("L'Access Token a probablement expiré (limite d'1 heure) ou les droits sont insuffisants.");
+                }
+                return response.json();
+            })
+            .then(data => {
+                statusDiv.style.color = "#00FF00";
+                statusDiv.innerText = "Données synchronisées avec succès !";
+                
+                // Traitement et formatage des données reçues de Zoho
+                if(data.data) {
+                    donneesInitiales = data.data.map(item => {
+                        // On extrait le nom du propriétaire de l'appel et les types d'appels
+                        const nomCommercial = item.Owner ? item.Owner.name : "Inconnu";
+                        const estSortant = item.Call_Type === "Outbound" ? 1 : 0;
+                        const estEntrant = item.Call_Type === "Inbound" ? 1 : 0;
+                        
+                        return {
+                            nom: nomCommercial,
+                            sortants: estSortant,
+                            entrants: estEntrant,
+                            total: 1
+                        };
+                    });
+
+                    // Regroupement des appels par Commercial (agrégation)
+                    const listeAgregee = {};
+                    donneesInitiales.forEach(curr => {
+                        if(!listeAgregee[curr.nom]) {
+                            listeAgregee[curr.nom] = { nom: curr.nom, sortants: 0, entrants: 0, total: 0 };
+                        }
+                        listeAgregee[curr.nom].sortants += curr.sortants;
+                        listeAgregee[curr.nom].entrants += curr.entrants;
+                        listeAgregee[curr.nom].total += curr.total;
+                    });
+
+                    donneesInitiales = Object.values(listeAgregee);
+                    donneesAffichees = [...donneesInitiales];
+                    initialiserTableau();
+                } else {
+                    statusDiv.style.color = "#FFCC00";
+                    statusDiv.innerText = "Aucun appel trouvé dans la période actuelle.";
+                }
+            })
+            .catch(error => {
+                console.error(error);
+                statusDiv.style.color = "#FF0000";
+                statusDiv.innerText = "Erreur Zoho : " + error.message;
+            });
+        }
 
         function initialiserTableau() {
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
             let cumulS = 0, cumulE = 0, cumulT = 0;
 
-            // Tri pour garantir le rangement du plus grand au plus petit total d'appels
+            // Tri du plus grand au plus petit total d'appels
             donneesAffichees.sort((a, b) => b.total - a.total);
 
             donneesAffichees.forEach((d, index) => {
@@ -221,7 +285,7 @@
                 cumulT += d.total;
             });
 
-            // Ligne de total dynamique
+            // Ligne de total
             const totalRow = document.createElement('tr');
             totalRow.className = 'total-row';
             totalRow.innerHTML = `
@@ -254,9 +318,9 @@
             document.getElementById('objectifResultat').innerText = objectif;
         }
 
-        // Lancement automatique au chargement complet du script
-        initialiserTableau();
+        // Lancement au chargement
         calculerObjectif();
+        chargerDonneesZoho();
     </script>
 </body>
 </html>
